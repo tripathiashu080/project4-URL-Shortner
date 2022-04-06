@@ -27,12 +27,11 @@ const isValid = function (value) {
           res.status(400).send({ status: false, msg: "Plz enter valid URL" });
           return;
           }
-          const isUrlPresent=await urlModel.findOne({longUrl:longUrl})
-          if(isUrlPresent){
-              res.status(400).send({status:false, message:"short url already created for this URL"})
-              return
-          }
-  
+          const isUrlPresent = await urlModel.findOne({longUrl:longUrl}).select({createdAt: 0,updatedAt: 0,__v:0,_id:0})
+    if(isUrlPresent){
+        res.status(200).send({status:true, message:"Short URL already created for this provide Long URL", data:isUrlPresent})
+        return
+    }
         const urlCode=shortid.generate()
         const shortUrl=baseUrl+ '/' +urlCode
         console.log(shortid.generate());
@@ -41,7 +40,7 @@ const isValid = function (value) {
             urlCode,
             longUrl,
             shortUrl
-  
+        
         })
   
         res.status(201).send({status:true, message:"Short Url created successfully!",data:urlCreated})
@@ -51,27 +50,18 @@ const isValid = function (value) {
   };
 
 
-  const getCode= async (req, res) => {
+  const getCode=async function(req,res){
     try {
-        // find a document match to the code in req.params.code
-        const url = await urlModel.findOne({
-            urlCode: req.params.urlCode
-        })
-        if (url) {
-            // when valid we perform a redirect
-            return res.redirect(url.longUrl)
-        } else {
-            // else return a not found 404 status
-            return res.status(404).json('No URL Found')
-        }
+        let urlCode=req.params.urlCode
 
-    }
-    // exception handler
-    catch (err) {
-        console.error(err)
-        res.status(500).json('Server Error')
+       const isUrlCodePresent=await urlModel.findOne({urlCode:urlCode})
+
+        if(!isUrlCodePresent){
+            res.status(404).send({status:false, message:"Url not found this urlCode"})
+        }
+        res.status(302).redirect(isUrlCodePresent.longUrl)
+    } catch (err) {
+        res.status(500).send({status:false, message:err.message})
     }
 }
-
-
 module.exports = {createUrl, getCode}
