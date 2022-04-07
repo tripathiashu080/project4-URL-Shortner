@@ -4,6 +4,7 @@ const route = require('./routes/url.js');
 const { default: mongoose } = require('mongoose');
 const app = express();
 
+
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 

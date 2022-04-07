@@ -1,16 +1,39 @@
 
 const shortid = require('shortid')
+const redis = require("redis");
 
+const { promisify } = require("util");
 
 const urlModel = require('../models/urlModel')
 
-const isValid = function (value) {
+
+
+
+
+const redisClient = redis.createClient(
+    11776,
+    "redis-11776.c212.ap-south-1-1.ec2.cloud.redislabs.com",
+    { no_ready_check: true }
+  );
+  redisClient.auth("rrusW4ZeE0cu5CrGRtdoK63RlMMPkL3G", function (err) {
+    if (err) throw err;
+  });
+  
+  redisClient.on("connect", async function () {
+    console.log("Connected to Redis..");
+  });
+  
+  const SET_ASYNC = promisify(redisClient.SET).bind(redisClient);
+  const GET_ASYNC = promisify(redisClient.GET).bind(redisClient);
+  
+  const isValid = function (value) {
     if (typeof value === "undefined" || value === null) return false;
     if (typeof value === "string" && value.trim().length === 0) return false;
     return true;
   };
   
-  const isValidUrl=/(https?:\/\/(?:www\.|(?!www))[a-zA-Z0-9][a-zA-Z0-9-]+[a-zA-Z0-9]\.[^\s]{2,}|www\.[a-zA-Z0-9][a-zA-Z0-9-]+[a-zA-Z0-9]\.[^\s]{2,}|https?:\/\/(?:www\.|(?!www))[a-zA-Z0-9]+\.[^\s]{2,}|www\.[a-zA-Z0-9]+\.[^\s]{2,})/
+
+  const isValidUrl=/http(s?:\/\/(?:www\.|(?!www))[a-zA-Z0-9][a-zA-Z0-9-]+[a-zA-Z0-9]\.[^\s]{2,}|www\.[a-zA-Z0-9][a-zA-Z0-9-]+[a-zA-Z0-9]\.[^\s]{2,}|https?:\/\/(?:www\.|(?!www))[a-zA-Z0-9]+\.[^\s]{2,}|www\.[a-zA-Z0-9]+\.[^\s]{2,})/
   
   
   const createUrl = async function (req, res) {
@@ -50,16 +73,29 @@ const isValid = function (value) {
   };
 
 
-  const getCode=async function(req,res){
+  const getCode=async function(req,res){   
     try {
         let urlCode=req.params.urlCode
-
-       const isUrlCodePresent=await urlModel.findOne({urlCode:urlCode})
+        
+        isUrlCodePresent=await urlModel.findOne({urlCode:urlCode})
+        
+        if (urlCode.trim().length==0) {
+            res.status(400).send({ status: false, message: "plz provide URL Code in params" });
+            return;
+        }
 
         if(!isUrlCodePresent){
-            res.status(404).send({status:false, message:"Url not found this urlCode"})
+            res.status(404).send({status:false, message:"Url not found with this urlCode"})
+            return
         }
-        res.status(302).redirect(isUrlCodePresent.longUrl)
+
+        let cahcedUrlData = await GET_ASYNC(`${req.params.urlCode}`)
+        if(cahcedUrlData) {
+            res.redirect(JSON.parse(cahcedUrlData).longUrl)
+          }else{
+              await SET_ASYNC(`${req.params.urlCode}`, JSON.stringify(isUrlCodePresent))
+              res.redirect(isUrlCodePresent.longUrl)
+          }
     } catch (err) {
         res.status(500).send({status:false, message:err.message})
     }
